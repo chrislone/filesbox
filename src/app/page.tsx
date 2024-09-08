@@ -1,95 +1,239 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client'
+import { Flex, Layout, Image, Button, Upload, Space, Empty, Spin } from 'antd'
+import {
+  ArrowLeftOutlined,
+  CloudUploadOutlined,
+  PlusOutlined,
+  HomeOutlined,
+} from '@ant-design/icons'
+import FileIcon from '@/components/Fileicon'
+import { SetStateAction, useEffect, useState } from 'react'
+import { fetchFileList } from '@/api'
+import { useRouter, useParams } from 'next/navigation'
+// import { useNavigate, useParams } from 'react-router-dom'
+import {
+  isDirectory,
+  appendSlash,
+  deleteSlash,
+  isImage,
+  isVideo,
+} from '@/utils'
+import {
+  contentStyle,
+  layoutStyle,
+  headerStyle,
+  footerStyle,
+  uploadFileProps,
+  uploadDirectoryProps,
+} from './data'
+import {
+  DownloadOutlined,
+  SwapOutlined,
+  RotateLeftOutlined,
+  RotateRightOutlined,
+  ZoomOutOutlined,
+  ZoomInOutlined,
+  UndoOutlined,
+} from '@ant-design/icons'
+import './page.css'
 
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+const { Header, Content, Footer } = Layout
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+interface IOSSFileItem {
+  url: string
+  name: string
+  currentName: string
 }
+
+function Home() {
+  const [list, setList] = useState<IOSSFileItem[]>([])
+  const [imagePreviewVisible, setImagePreviewVisible] = useState<boolean>(false)
+  const [videoPreviewVisible, setVideoPreviewVisible] = useState<boolean>(false)
+  const [previewObjectUrl, setPreviewObjectUrl] = useState<string>('')
+  const [previewObjectName, setPreviewObjectName] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(false)
+  const router = useRouter()
+  const params = useParams()
+  // const navigate = useNavigate()
+  // const params = useParams()
+  const prefix = params['*'] as string
+
+  function fetchList() {
+    setLoading(true)
+    fetchFileList({
+      prefix: appendSlash(prefix),
+    })
+      .then((res: { data: SetStateAction<IOSSFileItem[]> }) => {
+        setList(res.data)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }
+
+  function handleFileIconClick(item: IOSSFileItem): void {
+    const { url, name } = item
+
+    if (isDirectory(name)) {
+      router.push(`/${deleteSlash(name)}`)
+      return
+    }
+
+    setPreviewObjectUrl(url)
+    setPreviewObjectName(name)
+    if (isImage(name)) {
+      setImagePreviewVisible(true)
+    } else if (isVideo(name)) {
+      setVideoPreviewVisible(true)
+    }
+  }
+
+  function handleGoBack() {
+    router.back()
+  }
+
+  function handleGoHome() {
+    router.push('/')
+  }
+
+  function handleDownload(url: string, name: string): void {
+    fetch(url)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(new Blob([blob]))
+        const link = document.createElement<'a'>('a')
+        link.href = url
+        link.download = name
+        document.body.appendChild(link)
+        link.click()
+        URL.revokeObjectURL(url)
+        link.remove()
+      })
+  }
+
+  useEffect(() => {
+    fetchList()
+  }, [prefix])
+
+  return (
+    <>
+      <Layout style={layoutStyle}>
+        <Flex vertical className="flex-wrap">
+          <Header style={headerStyle}>
+            <Space>
+              <Button
+                onClick={handleGoBack}
+                icon={<ArrowLeftOutlined />}
+                disabled={!prefix}
+                className="button-disabled-status"
+              >
+                后退
+              </Button>
+              <Upload {...uploadDirectoryProps}>
+                <Button icon={<CloudUploadOutlined />}>添加文件夹</Button>
+              </Upload>
+              <Button
+                onClick={handleGoHome}
+                icon={<HomeOutlined />}
+                disabled={!prefix}
+                className="button-disabled-status"
+              >
+                回首页
+              </Button>
+            </Space>
+          </Header>
+          <Content style={contentStyle}>
+            {list.length ? (
+              <div className="list">
+                {list.map((item: IOSSFileItem, index: number) => {
+                  return (
+                    <FileIcon
+                      key={index}
+                      name={item.name}
+                      currentName={item.currentName}
+                      url={item.url}
+                      onClick={() => {
+                        handleFileIconClick(item)
+                      }}
+                    ></FileIcon>
+                  )
+                })}
+              </div>
+            ) : (
+              <Empty description={<span>这里什么都没有</span>} />
+            )}
+          </Content>
+          <Footer style={footerStyle}>
+            <Upload {...uploadFileProps} className="file-uploader">
+              <Button
+                icon={<PlusOutlined />}
+                autoInsertSpace={false}
+                block
+              ></Button>
+            </Upload>
+          </Footer>
+        </Flex>
+        <Image
+          style={{ display: 'none' }}
+          preview={{
+            visible: videoPreviewVisible,
+            src: previewObjectUrl,
+            imageRender: () => (
+              <video height="70%" controls src={previewObjectUrl} />
+            ),
+            onVisibleChange: (value) => {
+              setVideoPreviewVisible(value)
+            },
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            toolbarRender: (_) => <></>,
+          }}
+        ></Image>
+        <Image
+          style={{ display: 'none' }}
+          src={previewObjectUrl}
+          preview={{
+            visible: imagePreviewVisible,
+            scaleStep: 0.5,
+            src: previewObjectUrl,
+            onVisibleChange: (value) => {
+              setImagePreviewVisible(value)
+            },
+            toolbarRender: (
+              _,
+              {
+                transform: { scale },
+                actions: {
+                  onFlipY,
+                  onFlipX,
+                  onRotateLeft,
+                  onRotateRight,
+                  onZoomOut,
+                  onZoomIn,
+                  onReset,
+                },
+              },
+            ) => (
+              <Space size={12} className="toolbar-wrapper">
+                <DownloadOutlined
+                  onClick={() =>
+                    handleDownload(previewObjectUrl, previewObjectName)
+                  }
+                />
+                <SwapOutlined rotate={90} onClick={onFlipY} />
+                <SwapOutlined onClick={onFlipX} />
+                <RotateLeftOutlined onClick={onRotateLeft} />
+                <RotateRightOutlined onClick={onRotateRight} />
+                <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+                <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+                <UndoOutlined onClick={onReset} />
+              </Space>
+            ),
+          }}
+        />
+        <Spin spinning={loading} fullscreen delay={500}></Spin>
+      </Layout>
+    </>
+  )
+}
+
+export default Home
